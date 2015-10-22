@@ -3,12 +3,13 @@
 let binpack = require('..')
 let Reader = binpack.Reader;
 
+let Stream = require('stream').PassThrough;
+
 describe('Reader', () => {
     describe('interface', () => {
         it('constructor', () => {
-            (() => new Reader).should.throw(RangeError);
-
-            let reader = new Reader(new Buffer(0));
+            let reader = new Reader;
+            reader = new Reader(new Buffer(0));
             reader = new Reader([]);
         });
 
@@ -83,24 +84,49 @@ describe('Reader', () => {
         });
 
         it('write', () => {
-            let reader = new Reader([]);
+            let reader = new Reader(3);
 
             reader.length().should.equal(0);
             reader.remaining().should.equal(0);
 
-            reader.write([0x01, 0x02]).should.equal(reader);
+            reader.write(new Buffer([0x01, 0x02])).should.be.true;
 
             reader.length().should.equal(2);
             reader.remaining().should.equal(2);
 
             reader.uint8().should.equal(0x01);
+            reader.compact();
+            reader.length().should.equal(1);
 
             reader.write(new Buffer([0x03, 0x04, 0x05]));
-
-            reader.length().should.equal(5);
-            reader.remaining().should.equal(4);
+            reader.length().should.equal(3);
+            reader.remaining().should.equal(3);
 
             reader.uint16be().should.equal(0x0203);
+            (() => reader.uint16le()).should.throw(RangeError);
+
+            reader.compact();
+            reader.uint16le().should.equal(0x0504);
+
+            reader.remaining().should.equal(0);
+        });
+
+        it('stream', () => {
+            let reader = new Reader(1);
+            let stream = new Stream();
+
+            stream.pipe(reader);
+
+            reader.remaining().should.equal(0);
+
+            stream.write(new Buffer([0x01, 0x03, 0x05, 0x07]));
+            reader.remaining().should.equal(1);
+            reader.uint8().should.equal(0x01);
+            reader.compact();
+            reader.uint8().should.equal(0x03);
+            (() => reader.uint8()).should.throw(RangeError)
+            reader.compact();
+            reader.uint8().should.equal(0x05);
         });
     });
 
@@ -155,13 +181,26 @@ describe('Reader', () => {
             reader.buffer(1).should.deep.equal(new Buffer([0x03]));
         });
 
+        it('string', () => {
+            let reader = new Reader(new Buffer("Hello, World!"));
+
+            reader.string(13).should.equal("Hello, World!");
+            (() => reader.string(1)).should.throw(RangeError);
+
+            reader.reset();
+
+            reader.string(6).should.equal("Hello,");
+            reader.string(6).should.equal(" World");
+            reader.string(1).should.equal("!");
+        });
+
         it('uint8', () => {
             let reader = new Reader(new Buffer([0x01, 0x02, 0x03]));
 
             reader.uint8().should.equal(1);
             reader.uint8().should.equal(2);
             reader.uint8().should.equal(3);
-            (() => reader.uint8()).should.throw();
+            (() => reader.uint8()).should.throw(RangeError);
         });
 
         it('int8', () => {
@@ -170,7 +209,7 @@ describe('Reader', () => {
             reader.int8().should.equal(1);
             reader.int8().should.equal(-2);
             reader.int8().should.equal(3);
-            (() => reader.int8()).should.throw();
+            (() => reader.int8()).should.throw(RangeError);
         });
 
         it('uint16le', () => {
