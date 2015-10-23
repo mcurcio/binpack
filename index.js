@@ -1,5 +1,4 @@
 'use strict';
 
-let reader = require('./lib/reader.js');
-
-exports.Reader = reader;
+exports.Reader = require('./lib/reader.js');
+exports.Writer = require('./lib/writer.js');
